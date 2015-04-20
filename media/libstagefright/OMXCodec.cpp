@@ -2249,37 +2249,27 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-#ifndef USE_SAMSUNG_COLORFORMAT
+#ifdef USE_SAMSUNG_COLORFORMAT
+    OMX_COLOR_FORMATTYPE eNativeColorFormat = def.format.video.eColorFormat;
+    setNativeWindowColorFormat(eNativeColorFormat);
+
+    err = native_window_set_buffers_geometry(
+    mNativeWindow.get(),
+    def.format.video.nFrameWidth,
+    def.format.video.nFrameHeight,
+    eNativeColorFormat);
+#elif defined(MTK_HARDWARE)
+    err = native_window_set_buffers_geometry(
+            mNativeWindow.get(),
+            def.format.video.nStride,
+            def.format.video.nSliceHeight,
+            def.format.video.eColorFormat);
+#else
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
             def.format.video.eColorFormat);
-#else
-    OMX_COLOR_FORMATTYPE eColorFormat;
-
-    switch (def.format.video.eColorFormat) {
-    case OMX_SEC_COLOR_FormatNV12TPhysicalAddress:
-        eColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_CUSTOM_YCbCr_420_SP_TILED;
-        break;
-    case OMX_COLOR_FormatYUV420SemiPlanar:
-        eColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_SP;
-        break;
-    case OMX_COLOR_FormatYUV420Planar:
-    default:
-        eColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_P;
-        break;
-    }
-
-    err = native_window_set_buffers_geometry(
-            mNativeWindow.get(),
-            def.format.video.nFrameWidth,
-            def.format.video.nFrameHeight,
-            eColorFormat);
-
-    if (mNativeWindow != NULL) {
-        initNativeWindowCrop();
-    }
 #endif
 
     if (err != 0) {
@@ -2330,6 +2320,15 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 
     ALOGV("native_window_set_usage usage=0x%lx", usage);
 
+#ifdef MTK_HARDWARE
+    usage |= (GRALLOC_USAGE_SW_WRITE_OFTEN | GRALLOC_USAGE_SW_READ_OFTEN);
+#endif
+
+#ifdef EXYNOS4_ENHANCEMENTS
+    err = native_window_set_usage(
+            mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
+            | GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY);
+#else
     err = native_window_set_usage(
             mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
 
